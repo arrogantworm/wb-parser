@@ -1,0 +1,22 @@
+{% load custom_filters %}
+
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport"
+          content="width=device-width, user-scalable=no, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0">
+    <meta http-equiv="X-UA-Compatible" content="ie=edge">
+    <title>Document</title>
+</head>
+<body>
+    <section>
+        <h3>Товары категории {{ category }}</h3>
+        <ul>
+            {% for item in items %}
+                <li>{{ item.name }} - Цена: {{ item.sizes.0.price.basic | divide100 }}р. - Цена со скидкой: {{ item.sizes.0.price.product | divide100 }}р.- Отзывов: {{ item.feedbacks }} - Рейтинг: {{ item.reviewRating }}</li>
+            {% endfor %}
+        </ul>
+    </section>
+</body>
+</html>
