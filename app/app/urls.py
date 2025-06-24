@@ -19,5 +19,5 @@ from django.urls import path, include
 
 urlpatterns = [
     path('admin/', admin.site.urls),
-    path('wb/', include('wb_parser.urls', namespace='wb_parser')),
+    path('', include('wb_parser.urls', namespace='wb_parser')),
 ]

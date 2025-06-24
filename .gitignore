@@ -1,4 +1,5 @@
 task.txt
 plan.txt
+parser.py
 .venv/*
 .idea/*

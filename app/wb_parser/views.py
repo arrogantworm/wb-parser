@@ -2,6 +2,16 @@ from django.shortcuts import render
 from . import parser
 
 
+def main_view(request):
+    categories = parser.get_wb_categories()
+
+    return render(
+        request,
+        'main.html',
+        {'categories': categories}
+    )
+
+
 def categories_view(request):
     categories = parser.get_wb_categories()
 
