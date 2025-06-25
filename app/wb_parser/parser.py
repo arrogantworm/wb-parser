@@ -5,8 +5,6 @@ def get_wb_categories() -> dict:
     """Сбор категорий wb"""
 
     url = 'https://static-basket-01.wbbasket.ru/vol0/data/main-menu-ru-ru-v3.json'
-
-    data = requests.get(url).json()
     
     return requests.get(url).json()
 
@@ -29,5 +27,5 @@ def parse_page(page: int = 1, shard:str = None, query:str = None, low_price:int 
         url += f'&{query}'
     print(url)
     r = requests.get(url, headers=headers)
-    print(r)
+
     return r.json()
