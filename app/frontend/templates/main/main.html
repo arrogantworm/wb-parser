@@ -24,7 +24,7 @@
             <div class="category-card">
                 <h3 data-id="{{ category.id }}" {% if not category.shard == 'blackhole' %}data-shard="{{ category.shard }}" data-query="{{ category.query }}"{% endif %}>{{ category.name }}</h3>
                 {% if category.childs %}
-                    {% include "parts/category_tree.html" with categories=category.childs %}
+                    {% include "main/parts/category_tree.html" with categories=category.childs %}
                 {% endif %}
             </div>
             {% endif %}

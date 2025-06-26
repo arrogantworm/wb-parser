@@ -7,6 +7,13 @@ def main_view(request):
 
     return render(
         request,
-        'main.html',
+        'main/main.html',
         {'categories': categories}
+    )
+
+
+def products_view(request):
+    return render(
+        request,
+        'products/products.html'
     )

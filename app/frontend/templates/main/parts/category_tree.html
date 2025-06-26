@@ -3,7 +3,7 @@
     <li>
       <p{% if category.childs %} class="toggle"{% endif %} data-id="{{ category.id }}" {% if not category.shard == 'blackhole' %}data-shard="{{ category.shard }}" data-query="{{ category.query }}"{% endif %}>{{ category.name }}</p>
       {% if category.childs %}
-        {% include "parts/category_tree.html" with categories=category.childs %}
+        {% include "main/parts/category_tree.html" with categories=category.childs %}
       {% endif %}
     </li>
   {% endfor %}

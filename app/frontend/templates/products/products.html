@@ -1,0 +1,189 @@
+{% extends 'base.html' %}
+
+{% load static %}
+
+{% block aside %}
+    <nav>
+        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-arrow-left"><line x1="19" y1="12" x2="5" y2="12"></line><polyline points="12 19 5 12 12 5"></polyline></svg>
+        <a href="{% url 'frontend:main' %}" class="header">К поиску</a>
+    </nav>
+    <div class="filters-container">
+        <p class="header">Фильтры</p>
+        <div class="filter-wrapper">
+            <p class="label">Цена</p>
+            <input type="number" name="low-price" id="low-price" placeholder="Мин">
+            <input type="number" name="top-price" id="top-price" placeholder="Макс">
+        </div>
+        <div class="filter-wrapper">
+            <p class="label">Рейтинг</p>
+            <input type="number" min="0" max="5" step="0.1" placeholder="Не ниже">
+        </div>
+        <div class="filter-wrapper">
+            <p class="label">Отзывы</p>
+            <input type="number" min="0" placeholder="Не менее">
+        </div>
+        <div class="filter-btns">
+            <button class="primary">Применить</button>
+            <button class="secondary">Сбросить</button>
+        </div>
+    </div>
+{% endblock %}
+
+{% block content %}
+    {% include 'products/parts/category_nav.html' %}
+    <section id="charts">
+        <div class="charts-wrapper">
+            <div class="chart">
+                <p>Распределение цены vs количество товаров</p>
+                <canvas id="chart1"></canvas>
+            </div>
+            <div class="chart">
+                <p>Размер скидки на товар vs рейтинг товара</p>
+                <canvas id="chart2"></canvas>
+            </div>
+        </div>
+    </section>
+    <section id="products">
+        <div class="table-wrapper">
+            <table>
+                <thead>
+                    <tr>
+                        <th>
+                            <div class="th-wrapper">
+                                <p>Название</p>
+                                <div class="sort-btn ascending" data-sort="name">
+                                    <div class="bar"></div>
+                                    <div class="bar"></div>
+                                    <div class="bar"></div>
+                                </div>
+                            </div>
+                        </th>
+                        <th>
+                            <div class="th-wrapper">
+                                <p>Цена</p>
+                                <div class="sort-btn" data-sort="price">
+                                    <div class="bar"></div>
+                                    <div class="bar"></div>
+                                    <div class="bar"></div>
+                                </div>
+                            </div>
+                        </th>
+                        <th>
+                            <div class="th-wrapper">
+                                <p>Цена со скидкой</p>
+                                <div class="sort-btn" data-sort="discounted_price">
+                                    <div class="bar"></div>
+                                    <div class="bar"></div>
+                                    <div class="bar"></div>
+                                </div>
+                            </div>
+                        </th>
+                        <th>
+                            <div class="th-wrapper">
+                                <p>Рейтинг</p>
+                                <div class="sort-btn" data-sort="rating">
+                                    <div class="bar"></div>
+                                    <div class="bar"></div>
+                                    <div class="bar"></div>
+                                </div>
+                            </div>
+                        </th>
+                        <th>
+                            <div class="th-wrapper">
+                                <p>Отзывы</p>
+                                <div class="sort-btn" data-sort="reviews">
+                                    <div class="bar"></div>
+                                    <div class="bar"></div>
+                                    <div class="bar"></div>
+                                </div>
+                            </div>
+                        </th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>Товар</td>
+                        <td>100</td>
+                        <td>80</td>
+                        <td>4.5</td>
+                        <td>77</td>
+                    </tr>
+                    <tr>
+                        <td>Товар</td>
+                        <td>100</td>
+                        <td>80</td>
+                        <td>4.5</td>
+                        <td>77</td>
+                    </tr>
+                    <tr>
+                        <td>Товар</td>
+                        <td>100</td>
+                        <td>80</td>
+                        <td>4.5</td>
+                        <td>77</td>
+                    </tr>
+                    <tr>
+                        <td>Товар</td>
+                        <td>100</td>
+                        <td>80</td>
+                        <td>4.5</td>
+                        <td>77</td>
+                    </tr>
+                    <tr>
+                        <td>Товар</td>
+                        <td>100</td>
+                        <td>80</td>
+                        <td>4.5</td>
+                        <td>77</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </section>
+{% endblock %}
+
+{% block js %}
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script>
+        const ctx = document.getElementById('chart1');
+
+        new Chart(ctx, {
+            type: 'bar',
+            data: {
+            labels: ['Red', 'Blue', 'Yellow', 'Green', 'Purple', 'Orange'],
+            datasets: [{
+                label: '# of Votes',
+                data: [12, 19, 3, 5, 2, 3],
+                borderWidth: 1
+            }]
+            },
+            options: {
+            scales: {
+                y: {
+                beginAtZero: true
+                }
+            }
+            }
+        });
+        const ctx2 = document.getElementById('chart2');
+
+        new Chart(ctx2, {
+            type: 'line',
+            data: {
+            labels: ['Red', 'Blue', 'Yellow', 'Green', 'Purple', 'Orange'],
+            datasets: [{
+                label: '# of Votes',
+                data: [12, 19, 3, 5, 2, 3],
+                borderWidth: 1
+            }]
+            },
+            options: {
+            scales: {
+                y: {
+                beginAtZero: true
+                }
+            }
+            }
+        });
+    </script>
+{% endblock %}
