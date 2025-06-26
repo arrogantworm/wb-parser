@@ -1,5 +1,6 @@
 task.txt
 plan.txt
 parser.py
+app/db.sqlite3
 .venv/*
 .idea/*
