@@ -18,6 +18,10 @@ if (!page) {
     window.history.replaceState({}, '', `${window.location.pathname}?${params.toString()}`);
 }
 
+// Графики
+let chart1Instance = null;
+let chart2Instance = null;
+
 // Навигация
 const mainNav = document.querySelector('nav.categories');
 
@@ -153,9 +157,7 @@ function renderPagination(count, pageSize, currentPage) {
             params.set('page', i);
             history.pushState({}, '', `${window.location.pathname}?${params.toString()}`);
 
-            let data = await requestProducts(i);
-            renderProductsTable(data['results']);
-            renderPagination(data['count'], 20, i);
+            reloadTable(i);
         });
 
         paginationUl.appendChild(li);
@@ -169,9 +171,7 @@ function renderPagination(count, pageSize, currentPage) {
         if (currentPage > 1) {
             params.set('page', currentPage - 1);
             history.pushState({}, '', `${window.location.pathname}?${params.toString()}`);
-            let data = await requestProducts(currentPage - 1);
-            renderProductsTable(data['results']);
-            renderPagination(data['count'], 20, currentPage - 1);
+            reloadTable(currentPage - 1);
         }
     };
 
@@ -179,16 +179,15 @@ function renderPagination(count, pageSize, currentPage) {
         if (currentPage < totalPages) {
             params.set('page', currentPage + 1);
             history.pushState({}, '', `${window.location.pathname}?${params.toString()}`);
-            let data = await requestProducts(currentPage + 1);
-            renderProductsTable(data['results']);
-            renderPagination(data['count'], 20, currentPage + 1);
+            reloadTable(currentPage + 1);
         }
     };
 }
 
 // Сортировка
 function initSorting() {
-    const currentSort = params.get('sort');
+    let currentSort = params.get('sort') || 'name';
+
     document.querySelectorAll('.sort-btn').forEach(btn => {
         const baseSort = btn.dataset.sort.replace('-', '');
 
@@ -232,13 +231,76 @@ function initSorting() {
             params.set('page', 1);
             history.pushState({}, '', `${window.location.pathname}?${params.toString()}`);
 
-            let data = await requestProducts(1);
-            if (data) {
-                renderProductsTable(data['results']);
-                renderPagination(data['count'], 20, 1);
-            }
+            reloadTable(1);
         });
     });
+}
+
+
+// Фильтры
+
+function initFilters() {
+    const minPriceInput = document.getElementById('low-price');
+    const maxPriceInput = document.getElementById('top-price');
+    const minRatingInput = document.querySelector('input[placeholder="Не ниже"]');
+    const minFeedbacksInput = document.querySelector('input[placeholder="Не менее"]');
+
+    const applyBtn = document.querySelector('.filter-btns .primary');
+    const resetBtn = document.querySelector('.filter-btns .secondary');
+
+    // После объявления minPriceInput, maxPriceInput...
+    if (params.get('min_price')) minPriceInput.value = params.get('min_price');
+    if (params.get('top_price')) maxPriceInput.value = params.get('top_price');
+    if (params.get('min_rating')) minRatingInput.value = params.get('min_rating');
+    if (params.get('min_feedbacks')) minFeedbacksInput.value = params.get('min_feedbacks');
+
+    applyBtn.onclick = () => {
+        if (minPriceInput.value) {
+            params.set('min_price', minPriceInput.value);
+        } else {
+            params.delete('min_price');
+        }
+
+        if (maxPriceInput.value) {
+            params.set('top_price', maxPriceInput.value);
+        } else {
+            params.delete('top_price');
+        }
+
+        if (minRatingInput.value) {
+            params.set('min_rating', minRatingInput.value);
+        } else {
+            params.delete('min_rating');
+        }
+
+        if (minFeedbacksInput.value) {
+            params.set('min_feedbacks', minFeedbacksInput.value);
+        } else {
+            params.delete('min_feedbacks');
+        }
+
+        params.set('page', 1);
+        page = 1;
+
+        history.pushState({}, '', `${window.location.pathname}?${params.toString()}`);
+        initProductsInfo();
+    };
+
+    resetBtn.onclick = () => {
+        params.delete('min_price');
+        params.delete('top_price');
+        params.delete('min_rating');
+        params.delete('min_feedbacks');
+        params.set('page', 1);
+
+        minPriceInput.value = '';
+        maxPriceInput.value = '';
+        minRatingInput.value = '';
+        minFeedbacksInput.value = '';
+
+        history.pushState({}, '', `${window.location.pathname}?${params.toString()}`);
+        initProductsInfo();
+    };
 }
 
 
@@ -344,6 +406,119 @@ function renderProductsTable(products) {
     });
 }
 
+async function reloadTable(page) {
+    let data = await requestProducts(page);
+    if (data) {
+        renderProductsTable(data['results']);
+        renderPagination(data['count'], 20, page);
+    }
+}
+
+// Графики
+
+async function initCharts() {
+    const chartsSection = document.getElementById('charts');
+    const chart1Container = document.getElementById('chart1').parentElement;
+    const chart2Container = document.getElementById('chart2').parentElement;
+
+    const chart1Ctx = document.getElementById('chart1').getContext('2d');
+    const chart2Ctx = document.getElementById('chart2').getContext('2d');
+
+    try {
+        const url = `/api/charts/?${params.toString()}`;
+        const response = await fetch(url);
+        const data = await response.json();
+
+        if (!response.ok) {
+            throw new Error('Ошибка при загрузке графиков');
+        }
+
+        // 1. Гистограмма цен
+        const labels1 = data.price_histogram.map(item => item.range);
+        const counts1 = data.price_histogram.map(item => item.count);
+
+        if (chart1Instance) {
+            chart1Instance.destroy();
+        }
+        chart1Instance = new Chart(chart1Ctx, {
+            type: 'bar',
+            data: {
+                labels: labels1,
+                datasets: [{
+                    label: 'Количество товаров',
+                    data: counts1
+                }]
+            },
+            options: {
+                responsive: true,
+                scales: {
+                    y: { beginAtZero: true }
+                }
+            }
+        });
+
+        let chart1Loading = chart1Container.querySelector('.loading');
+        if (chart1Loading) {
+            chart1Loading.remove();
+        }
+
+        // 2. Линейный график скидка vs рейтинг
+        const labels2 = data.discount_vs_rating.map((_, idx) => idx + 1); // просто индекс
+        const ratings = data.discount_vs_rating.map(item => item.rating);
+        const discounts = data.discount_vs_rating.map(item => item.discount_percent);
+
+        if (chart2Instance) {
+            chart2Instance.destroy();
+        }
+        chart2Instance = new Chart(chart2Ctx, {
+            type: 'line',
+            data: {
+                labels: labels2,
+                datasets: [{
+                    label: 'Рейтинг',
+                    data: ratings,
+                    yAxisID: 'y1',
+                    borderWidth: 2
+                }, {
+                    label: 'Скидка (%)',
+                    data: discounts,
+                    yAxisID: 'y2',
+                    borderWidth: 2
+                }]
+            },
+            options: {
+                responsive: true,
+                interaction: {
+                    mode: 'index',
+                    intersect: false
+                },
+                stacked: false,
+                scales: {
+                    y1: {
+                        type: 'linear',
+                        position: 'left',
+                        beginAtZero: true,
+                        suggestedMax: 5
+                    },
+                    y2: {
+                        type: 'linear',
+                        position: 'right',
+                        beginAtZero: true
+                    }
+                }
+            }
+        });
+        let chart2Loading = chart2Container.querySelector('.loading');
+        if (chart2Loading) {
+            chart2Loading.remove();
+        }
+
+
+    } catch (err) {
+        console.error('Ошибка загрузки графиков:', err);
+    }
+}
+
 async function initProductsInfo() {
     const parsingStatus = await requestCategoryStatus(categoryId);
     console.log('Статус:', parsingStatus);
@@ -360,7 +535,14 @@ async function initProductsInfo() {
             renderPagination(data['count'], 20, parseInt(page));
             paginationNav.classList.remove('hidden');
 
+            // Сортировка
             initSorting();
+
+            // Фильтры
+            initFilters();
+
+            // Графики
+            initCharts();
             break;
         case 'parsing':
             console.log('Жду 5 секунд')
@@ -385,4 +567,53 @@ async function init() {
     }
 }
 
+// Графики заглушка
+const ctx = document.getElementById('chart1');
+
+chart1Instance = new Chart(ctx, {
+    type: 'bar',
+    data: {
+    labels: [],
+    datasets: [
+    {
+        label: '',
+        data: [],
+        borderWidth: 1
+    }]
+    },
+    options: {
+    scales: {
+        y: {
+        beginAtZero: true
+        }
+    }
+    }
+});
+const ctx2 = document.getElementById('chart2');
+
+chart2Instance = new Chart(ctx2, {
+    type: 'line',
+    data: {
+    labels: [],
+    datasets: [{
+        label: '',
+        data: [],
+        borderWidth: 1
+    },
+    {
+        label: '',
+        data: [],
+        borderWidth: 1
+    }]
+    },
+    options: {
+    scales: {
+        y: {
+        beginAtZero: true
+        }
+    }
+    }
+});
+
+// Инициализация
 init();

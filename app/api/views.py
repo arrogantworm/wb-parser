@@ -1,6 +1,8 @@
+import math
 from decimal import Decimal
 from datetime import timedelta
 from django.utils import timezone
+from django.db.models import Min, Max, Q
 from django.core.cache import cache
 from rest_framework.pagination import PageNumberPagination
 from rest_framework.generics import ListAPIView
@@ -24,7 +26,7 @@ class ProductParseView(APIView):
 
             category_id = query_params.get('category_id')
 
-            if not category_id.isdigit():
+            if not (category_id or category_id.isdigit()):
                 return Response({'status': 'error', 'error': 'ID категории должно быть числом'}, status=status.HTTP_400_BAD_REQUEST)
 
             category_id = int(category_id)
@@ -80,7 +82,7 @@ class ProductPagination(PageNumberPagination):
     page_size = 20
 
 
-class ProductListAPIView(ListAPIView):
+class ProductListView(ListAPIView):
 
     serializer_class = ProductSerializer
     pagination_class = ProductPagination
@@ -96,44 +98,53 @@ class ProductListAPIView(ListAPIView):
         qs = Product.objects.filter(category__wb_id=category_id).prefetch_related('sizes')
 
         # Фильтрация
+        filters = Q()
         min_price = self.request.query_params.get('min_price')
         top_price = self.request.query_params.get('top_price')
         min_rating = self.request.query_params.get('min_rating')
         min_feedbacks = self.request.query_params.get('min_feedbacks')
 
-        if min_price:
-            qs = qs.filter(sizes__price__gte=min_price)
-        if top_price:
-            qs = qs.filter(sizes__price__lte=top_price)
+        if min_price and min_price.isdigit():
+            filters &= Q(sizes__discounted_price__gte=Decimal(min_price))
+        if top_price and top_price.isdigit():
+            filters &= Q(sizes__discounted_price__lte=Decimal(top_price))
         if min_rating:
-            qs = qs.filter(review_rating__gte=min_rating)
+            filters &= Q(review_rating__gte=min_rating)
         if min_feedbacks:
-            qs = qs.filter(feedbacks__gte=min_feedbacks)
+            filters &= Q(feedbacks__gte=min_feedbacks)
+
+        qs = qs.filter(filters)
+
+        qs = qs.annotate(
+            min_discounted=Min('sizes__discounted_price'),
+            min_price=Min('sizes__price')
+        )
 
         # Сортировка
         ordering = self.request.query_params.get('sort')
-        if ordering in ['name', '-name', 'price', '-price', 'discounted_price', '-discounted_price', 'rating', '-rating', 'feedbacks', '-feedbacks']:
+        if ordering in ['name', '-name', 'price', '-price', 'discounted_price', '-discounted_price', 'rating',
+                        '-rating', 'feedbacks', '-feedbacks']:
             match ordering:
                 case 'name':
-                    qs = qs.order_by(ordering)
+                    qs = qs.order_by('name')
                 case '-name':
-                    qs = qs.order_by(f'-{ordering[1:]}')
+                    qs = qs.order_by('-name')
                 case 'price':
-                    qs = qs.order_by(f'sizes__{ordering}')
+                    qs = qs.order_by('min_price')
                 case '-price':
-                    qs = qs.order_by(f'-sizes__{ordering[1:]}')
+                    qs = qs.order_by('-min_price')
                 case 'discounted_price':
-                    qs = qs.order_by(f'sizes__{ordering}')
+                    qs = qs.order_by('min_discounted')
                 case '-discounted_price':
-                    qs = qs.order_by(f'-sizes__{ordering[1:]}')
+                    qs = qs.order_by('-min_discounted')
                 case 'rating':
                     qs = qs.order_by('review_rating')
                 case '-rating':
                     qs = qs.order_by('-review_rating')
                 case 'feedbacks':
-                    qs = qs.order_by(ordering)
+                    qs = qs.order_by('feedbacks')
                 case '-feedbacks':
-                    qs = qs.order_by(f'-{ordering[1:]}')
+                    qs = qs.order_by('-feedbacks')
 
         return qs.distinct()
 
@@ -166,3 +177,103 @@ class CategoriesPathView(APIView):
                 return Response({'status': 'parsing'}, status=status.HTTP_200_OK)
             else:
                 return Response({'status': 'error', 'error': 'Сначала нужно запустить парсинг категории'}, status=status.HTTP_404_NOT_FOUND)
+
+
+class ChartDataView(APIView):
+
+    def get(self, request):
+
+        category_id = request.query_params.get('category_id')
+
+        if not (category_id or category_id.isdigit()):
+            return Response({'status': 'error', 'error': 'ID категории должно быть числом'},
+                            status=status.HTTP_400_BAD_REQUEST)
+
+        category_id = int(category_id)
+
+        qs = Size.objects.filter(product__category__wb_id=category_id)
+
+        # фильтры цен
+        min_f = request.query_params.get('min_price')
+        max_f = request.query_params.get('top_price')
+        min_rating = request.query_params.get('min_rating')
+        min_feedbacks = request.query_params.get('min_feedbacks')
+        if min_f:
+            min_f = Decimal(min_f)
+            qs = qs.filter(discounted_price__gte=min_f)
+        if max_f:
+            max_f = Decimal(max_f)
+            qs = qs.filter(discounted_price__lte=max_f)
+        if min_rating:
+            qs = qs.filter(product__review_rating__gte=min_rating)
+        if min_feedbacks:
+            qs = qs.filter(product__feedbacks__gte=min_feedbacks)
+
+        # диапазон цен
+        price_range = qs.aggregate(min_price=Min('discounted_price'), max_price=Max('discounted_price'))
+        min_price = price_range['min_price']
+        max_price = price_range['max_price']
+
+        if not (min_price or max_price):
+            return Response({
+                "price_histogram": [],
+                "discount_vs_rating": []
+            })
+
+        # округляем min, max вверх до кратных 500
+        min_bucket = math.floor(min_price / 500) * 500
+        max_bucket = math.ceil(max_price / 500) * 500
+
+        # шаг диапазона - примерно 6 частей диапазона, но не меньше 500
+        bucket_size = max(500, math.ceil((max_bucket - min_bucket) / 6 / 500) * 500)
+
+        # строим диапазон
+        buckets = []
+        current = min_bucket
+        while current < max_bucket:
+            buckets.append((current, current + bucket_size))
+            current += bucket_size
+
+        # собираем количество товаров
+        histogram_data = []
+        for low, high in buckets:
+            count = qs.filter(discounted_price__gte=low, discounted_price__lt=high).count()
+            histogram_data.append({
+                "range": f"{low}-{high}",
+                "count": count
+            })
+
+        # discount vs rating
+        products = Product.objects.filter(category__wb_id=category_id)
+
+        if min_f:
+            products = products.filter(sizes__discounted_price__gte=min_f)
+        if max_f:
+            products = products.filter(sizes__discounted_price__lte=max_f)
+        if min_rating:
+            products = products.filter(review_rating__gte=min_rating)
+        if min_feedbacks:
+            products = products.filter(feedbacks__gte=min_feedbacks)
+
+        discount_vs_rating = []
+        seen_pairs = set()
+
+        for product in products.prefetch_related('sizes'):
+            if product.sizes.exists():
+                size = product.sizes.first()
+                if size.price and size.discounted_price and size.price > 0:
+                    discount_percent = int(100 - (size.discounted_price / size.price * 100))
+                    rating = product.review_rating or 0
+
+                    pair = (rating, discount_percent)
+                    if pair not in seen_pairs:
+                        seen_pairs.add(pair)
+                        discount_vs_rating.append({
+                            "rating": rating,
+                            "discount_percent": discount_percent
+                        })
+
+        return Response({
+            "price_histogram": histogram_data,
+            "discount_vs_rating": discount_vs_rating
+        })
