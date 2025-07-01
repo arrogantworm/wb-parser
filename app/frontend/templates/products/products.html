@@ -30,130 +30,55 @@
 {% endblock %}
 
 {% block content %}
-    {% include 'products/parts/category_nav.html' %}
+    <nav class="categories">
+        <div class="loading"></div>
+    </nav>
     <section id="charts">
         <div class="charts-wrapper">
             <div class="chart">
                 <p>Распределение цены vs количество товаров</p>
+                <div class="loading"></div>
                 <canvas id="chart1"></canvas>
             </div>
             <div class="chart">
                 <p>Размер скидки на товар vs рейтинг товара</p>
+                <div class="loading"></div>
                 <canvas id="chart2"></canvas>
             </div>
         </div>
     </section>
     <section id="products">
+        <nav class="pagination hidden">
+            <p class="prev"></p>
+            <ul>
+
+            </ul>
+            <p class="next"></p>
+        </nav>
         <div class="table-wrapper">
-            <table>
-                <thead>
-                    <tr>
-                        <th>
-                            <div class="th-wrapper">
-                                <p>Название</p>
-                                <div class="sort-btn ascending" data-sort="name">
-                                    <div class="bar"></div>
-                                    <div class="bar"></div>
-                                    <div class="bar"></div>
-                                </div>
-                            </div>
-                        </th>
-                        <th>
-                            <div class="th-wrapper">
-                                <p>Цена</p>
-                                <div class="sort-btn" data-sort="price">
-                                    <div class="bar"></div>
-                                    <div class="bar"></div>
-                                    <div class="bar"></div>
-                                </div>
-                            </div>
-                        </th>
-                        <th>
-                            <div class="th-wrapper">
-                                <p>Цена со скидкой</p>
-                                <div class="sort-btn" data-sort="discounted_price">
-                                    <div class="bar"></div>
-                                    <div class="bar"></div>
-                                    <div class="bar"></div>
-                                </div>
-                            </div>
-                        </th>
-                        <th>
-                            <div class="th-wrapper">
-                                <p>Рейтинг</p>
-                                <div class="sort-btn" data-sort="rating">
-                                    <div class="bar"></div>
-                                    <div class="bar"></div>
-                                    <div class="bar"></div>
-                                </div>
-                            </div>
-                        </th>
-                        <th>
-                            <div class="th-wrapper">
-                                <p>Отзывы</p>
-                                <div class="sort-btn" data-sort="reviews">
-                                    <div class="bar"></div>
-                                    <div class="bar"></div>
-                                    <div class="bar"></div>
-                                </div>
-                            </div>
-                        </th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <tr>
-                        <td>Товар</td>
-                        <td>100</td>
-                        <td>80</td>
-                        <td>4.5</td>
-                        <td>77</td>
-                    </tr>
-                    <tr>
-                        <td>Товар</td>
-                        <td>100</td>
-                        <td>80</td>
-                        <td>4.5</td>
-                        <td>77</td>
-                    </tr>
-                    <tr>
-                        <td>Товар</td>
-                        <td>100</td>
-                        <td>80</td>
-                        <td>4.5</td>
-                        <td>77</td>
-                    </tr>
-                    <tr>
-                        <td>Товар</td>
-                        <td>100</td>
-                        <td>80</td>
-                        <td>4.5</td>
-                        <td>77</td>
-                    </tr>
-                    <tr>
-                        <td>Товар</td>
-                        <td>100</td>
-                        <td>80</td>
-                        <td>4.5</td>
-                        <td>77</td>
-                    </tr>
-                </tbody>
-            </table>
+            <div class="loading"></div>
         </div>
     </section>
 {% endblock %}
 
 {% block js %}
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="{% static 'js/products.js' %}" defer></script>
     <script>
         const ctx = document.getElementById('chart1');
 
         new Chart(ctx, {
             type: 'bar',
             data: {
-            labels: ['Red', 'Blue', 'Yellow', 'Green', 'Purple', 'Orange'],
+            labels: [],
             datasets: [{
-                label: '# of Votes',
-                data: [12, 19, 3, 5, 2, 3],
+                label: '',
+                data: [],
+                borderWidth: 1
+            },
+            {
+                label: '',
+                data: [],
                 borderWidth: 1
             }]
             },
@@ -170,10 +95,15 @@
         new Chart(ctx2, {
             type: 'line',
             data: {
-            labels: ['Red', 'Blue', 'Yellow', 'Green', 'Purple', 'Orange'],
+            labels: [],
             datasets: [{
-                label: '# of Votes',
-                data: [12, 19, 3, 5, 2, 3],
+                label: '',
+                data: [],
+                borderWidth: 1
+            },
+            {
+                label: '',
+                data: [],
                 borderWidth: 1
             }]
             },

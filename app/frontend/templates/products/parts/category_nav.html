@@ -1,7 +1,7 @@
 <nav class="categories">
     <ul>
-        <li>Женщинам</li>
-        <li>Белье</li>
-        <li>Аксессуары</li>
+        {% for category_id, category_name in category_path %}
+            <li data-id="{{ category_id }}">{{ category_name }}</li>
+        {% endfor %}
     </ul>
 </nav>

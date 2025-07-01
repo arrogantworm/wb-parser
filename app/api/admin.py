@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import Category, Product, Size
+from .models import Category, Product, Size, SearchQuery
 
 
 @admin.register(Category)
@@ -18,9 +18,9 @@ class SizeInline(admin.TabularInline):
 
 @admin.register(Product)
 class ProductAdmin(admin.ModelAdmin):
-    list_display = ('name', 'category', 'brand', 'supplier_id', 'review_rating', 'feedbacks')
+    list_display = ('name', 'category', 'brand', 'brand_id', 'review_rating', 'feedbacks')
     list_filter = ('brand',)
-    search_fields = ('name', 'wb_id', 'brand', 'supplier_id')
+    search_fields = ('name', 'wb_id', 'brand', 'brand_id')
     autocomplete_fields = ('category',)
     inlines = [SizeInline]
     ordering = ('name',)
@@ -32,3 +32,11 @@ class SizeAdmin(admin.ModelAdmin):
     search_fields = ('product__name', 'name', 'size_id')
     autocomplete_fields = ('product',)
     ordering = ('product', 'name')
+
+
+@admin.register(SearchQuery)
+class SearchQueryAdmin(admin.ModelAdmin):
+    list_display = ('query', 'count', 'created', 'last_search')
+    search_fields = ('query',)
+    ordering = ('-last_search',)
+    raw_id_fields = ('products',)

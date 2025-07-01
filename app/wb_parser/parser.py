@@ -1,6 +1,12 @@
 import requests
+from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
 
 
+@retry(
+    stop=stop_after_attempt(5),
+    wait=wait_exponential(multiplier=1, min=2, max=10),
+    retry=retry_if_exception_type((requests.exceptions.RequestException,))
+)
 def get_wb_categories() -> dict:
     """Сбор категорий wb"""
 
@@ -9,6 +15,35 @@ def get_wb_categories() -> dict:
     return requests.get(url).json()
 
 
+@retry(
+    stop=stop_after_attempt(5),
+    wait=wait_exponential(multiplier=1, min=2, max=10),
+    retry=retry_if_exception_type((requests.exceptions.RequestException,))
+)
+def search_category_by_id(category_id:int) -> list[dict] | None:
+    """Поиск категории по id"""
+
+    def recursive_search(categories: list, path: list) -> list[dict] | None:
+        for category in categories:
+            current_path = path + [category]
+            if category.get("id") == category_id:
+                return current_path
+
+            if "childs" in category:
+                result = recursive_search(category["childs"], current_path)
+                if result:
+                    return result
+        return None
+
+    categories = get_wb_categories()
+    return recursive_search(categories, [])
+
+
+@retry(
+    stop=stop_after_attempt(5),
+    wait=wait_exponential(multiplier=1, min=2, max=10),
+    retry=retry_if_exception_type((requests.exceptions.RequestException,))
+)
 def parse_page(page: int = 1, shard:str = None, query:str = None, low_price:int = None, top_price:int = None) -> dict:
     """Сбор товаров со страницы"""
 
@@ -25,7 +60,7 @@ def parse_page(page: int = 1, shard:str = None, query:str = None, low_price:int 
     url += f'&sort=popular&spp=0'
     if query:
         url += f'&{query}'
-    print(url)
+
     r = requests.get(url, headers=headers)
 
     return r.json()

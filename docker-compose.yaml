@@ -1,0 +1,68 @@
+services:
+
+  postgres:
+    image: postgres:17.5
+    restart: always
+    volumes:
+      - ./data/db:/var/lib/postgresql/data
+    environment:
+      - POSTGRES_DB=parser_db
+      - POSTGRES_USER=wbparser
+      - POSTGRES_PASSWORD=password
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U wbparser -d parser_db" ]
+      interval: 10s
+      retries: 5
+      start_period: 30s
+
+  redis:
+    image: redis:8.0.2
+    restart: always
+    volumes:
+      - ./data/cache:/data
+
+  rabbitmq:
+    image: rabbitmq:4.0.5-management-alpine
+    restart: always
+    environment:
+      - RABBITMQ_DEFAULT_USER=admin
+      - RABBITMQ_DEFAULT_PASS=mypass
+    ports:
+      - "15672:15672"
+    expose:
+      - 5672
+
+  celery:
+    build: .
+    command: celery -A app worker -l info
+    restart: always
+    working_dir: /app
+    volumes:
+      - ./app:/app
+    environment:
+      - DJANGO_SETTINGS_MODULE=app.settings
+      - POSTGRES_DB=parser_db
+      - POSTGRES_USER=wbparser
+      - POSTGRES_PASSWORD=password
+    depends_on:
+      rabbitmq:
+        condition: service_started
+      postgres:
+        condition: service_healthy
+
+  django:
+    build: .
+    command: python /app/app/manage.py runserver 0.0.0.0:8000
+    restart: always
+    volumes:
+    - .:/app
+    ports:
+    - "8000:8000"
+    environment:
+      - DJANGO_SETTINGS_MODULE=app.settings
+      - POSTGRES_DB=parser_db
+      - POSTGRES_USER=wbparser
+      - POSTGRES_PASSWORD=password
+    depends_on:
+      postgres:
+        condition: service_healthy
