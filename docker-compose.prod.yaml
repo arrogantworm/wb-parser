@@ -69,7 +69,7 @@ services:
     restart: always
     volumes:
     - .:/app
-    - django_static:/app/assets
+    - django_static:/app/app/assets
     expose:
     - 8000
     environment:
