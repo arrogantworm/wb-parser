@@ -12,6 +12,7 @@ click-repl==0.3.0
 Django==5.2.3
 djangorestframework==3.16.0
 drf-spectacular==0.28.0
+gunicorn==23.0.0
 idna==3.10
 inflection==0.5.1
 jsonschema==4.24.0
@@ -22,6 +23,7 @@ prompt_toolkit==3.0.51
 psycopg==3.2.9
 py==1.11.0
 python-dateutil==2.9.0.post0
+python-decouple==3.8
 PyYAML==6.0.2
 redis==6.2.0
 referencing==0.36.2

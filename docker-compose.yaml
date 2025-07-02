@@ -40,7 +40,8 @@ services:
     volumes:
       - ./app:/app
     environment:
-      - DJANGO_SETTINGS_MODULE=app.settings
+      - DJANGO_SETTINGS_MODULE=app.settings.local
+      - CELERY_BROKER_URL=amqp://admin:mypass@rabbitmq:5672//
       - POSTGRES_DB=parser_db
       - POSTGRES_USER=wbparser
       - POSTGRES_PASSWORD=password
@@ -59,7 +60,8 @@ services:
     ports:
     - "8000:8000"
     environment:
-      - DJANGO_SETTINGS_MODULE=app.settings
+      - DJANGO_SETTINGS_MODULE=app.settings.local
+      - CELERY_BROKER_URL=amqp://admin:mypass@rabbitmq:5672//
       - POSTGRES_DB=parser_db
       - POSTGRES_USER=wbparser
       - POSTGRES_PASSWORD=password

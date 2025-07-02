@@ -1,0 +1,88 @@
+services:
+
+  caddy:
+    image: caddy:2.9.1
+    container_name: caddy
+    restart: always
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile
+      - caddy_data:/data
+      - caddy_config:/config
+      - django_static:/django/static
+
+  postgres:
+    image: postgres:17.5
+    restart: always
+    volumes:
+      - ./data/db:/var/lib/postgresql/data
+    environment:
+      - POSTGRES_DB=parser_db
+      - POSTGRES_USER=wbparser
+      - POSTGRES_PASSWORD=password
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U wbparser -d parser_db" ]
+      interval: 10s
+      retries: 5
+      start_period: 30s
+
+  redis:
+    image: redis:8.0.2
+    restart: always
+    volumes:
+      - ./data/cache:/data
+
+  rabbitmq:
+    image: rabbitmq:4.0.5-management-alpine
+    restart: always
+    environment:
+      - RABBITMQ_DEFAULT_USER=${RABBIT_USER}
+      - RABBITMQ_DEFAULT_PASS=${RABBIT_PASS}
+    expose:
+      - 5672
+
+  celery:
+    build: .
+    command: celery -A app worker -l info
+    restart: always
+    working_dir: /app
+    volumes:
+      - ./app:/app
+    environment:
+      - DJANGO_SETTINGS_MODULE=${SETTINGS}
+      - CELERY_BROKER_URL=amqp://${RABBIT_USER}:${RABBIT_PASS}@rabbitmq:5672//
+      - POSTGRES_DB=${DB_NAME}
+      - POSTGRES_USER=${DB_USER}
+      - POSTGRES_PASSWORD=${DB_PASS}
+    depends_on:
+      rabbitmq:
+        condition: service_started
+      postgres:
+        condition: service_healthy
+
+  django:
+    build: .
+    command: [ "gunicorn", "--chdir", "/app/app", "app.wsgi:application",
+               "--bind", "0.0.0.0:8000" ]
+    restart: always
+    volumes:
+    - .:/app
+    - django_static:/app/assets
+    expose:
+    - 8000
+    environment:
+      - DJANGO_SETTINGS_MODULE=${SETTINGS}
+      - CELERY_BROKER_URL=amqp://${RABBIT_USER}:${RABBIT_PASS}@rabbitmq:5672//
+      - POSTGRES_DB=${DB_NAME}
+      - POSTGRES_USER=${DB_USER}
+      - POSTGRES_PASSWORD=${DB_PASS}
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+volumes:
+  caddy_data:
+  caddy_config:
+  django_static:

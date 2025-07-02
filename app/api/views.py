@@ -5,6 +5,7 @@ from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from django.db.models import Min, Max, Q, F
 from django.core.cache import cache
+from drf_spectacular.utils import extend_schema, OpenApiParameter, OpenApiTypes, OpenApiResponse
 from rest_framework.pagination import PageNumberPagination
 from rest_framework.generics import ListAPIView
 from rest_framework.views import APIView
@@ -18,6 +19,19 @@ from . import tasks
 
 class ProductParseView(APIView):
 
+    @extend_schema(
+        parameters=[
+            OpenApiParameter("category_id", OpenApiTypes.INT, OpenApiParameter.QUERY, required=False,
+                             description="ID категории для запуска/проверки парсинга"),
+            OpenApiParameter("q", OpenApiTypes.STR, OpenApiParameter.QUERY, required=False,
+                             description="Поисковая строка или URL категории Wildberries"),
+        ],
+        description="Запуск парсинга для категории или поискового запроса. Если передан URL категории Wildberries — возвращает её ID. Статус: ok или parsing.",
+        responses={
+            200: OpenApiResponse(description="Ответ с полями status или type=status"),
+            400: OpenApiResponse(description="Некорректные параметры запроса")
+        }
+    )
     def get(self, request):
 
         query_params = request.query_params
@@ -128,6 +142,25 @@ class ProductListView(ListAPIView):
     serializer_class = ProductSerializer
     pagination_class = ProductPagination
 
+    @extend_schema(
+        parameters=[
+            OpenApiParameter("category_id", OpenApiTypes.INT, OpenApiParameter.QUERY, description="ID категории"),
+            OpenApiParameter("q", OpenApiTypes.STR, OpenApiParameter.QUERY, description="Поисковый запрос"),
+            OpenApiParameter("min_price", OpenApiTypes.DECIMAL, OpenApiParameter.QUERY),
+            OpenApiParameter("top_price", OpenApiTypes.DECIMAL, OpenApiParameter.QUERY),
+            OpenApiParameter("min_rating", OpenApiTypes.FLOAT, OpenApiParameter.QUERY),
+            OpenApiParameter("min_feedbacks", OpenApiTypes.INT, OpenApiParameter.QUERY),
+            OpenApiParameter("sort", OpenApiTypes.STR, OpenApiParameter.QUERY,
+                             enum=['name', '-name', 'price', '-price', 'discounted_price', '-discounted_price',
+                                   'rating', '-rating', 'feedbacks', '-feedbacks']),
+            OpenApiParameter("page", OpenApiTypes.INT, OpenApiParameter.QUERY)
+        ],
+        description="Список товаров с фильтрами и сортировкой. Можно искать по категории или по поисковому запросу.",
+        responses={200: ProductSerializer(many=True)},
+    )
+    def get(self, request, *args, **kwargs):
+        return super().get(request, *args, **kwargs)
+
     def get_queryset(self):
 
         category_id = self.request.query_params.get('category_id')
@@ -171,6 +204,8 @@ class ProductListView(ListAPIView):
 
         # Сортировка
         ordering = self.request.query_params.get('sort')
+        if not ordering:
+            ordering = 'name'
         if ordering in ['name', '-name', 'price', '-price', 'discounted_price', '-discounted_price', 'rating',
                         '-rating', 'feedbacks', '-feedbacks']:
             match ordering:
@@ -200,6 +235,17 @@ class ProductListView(ListAPIView):
 
 class CategoriesPathView(APIView):
 
+    @extend_schema(
+        parameters=[
+            OpenApiParameter("category_id", OpenApiTypes.INT, OpenApiParameter.QUERY,
+                             description="ID категории для получения пути к корню"),
+        ],
+        description="Получает путь до корня категории по её ID. Если категория не найдена — возвращает ошибку или статус 'parsing'.",
+        responses={
+            200: OpenApiResponse(description="Ответ с path или статусом parsing"),
+            404: OpenApiResponse(description="Категория не найдена и не запущен парсинг")
+        }
+    )
     def get(self, request):
 
         query_params = request.query_params
@@ -230,6 +276,23 @@ class CategoriesPathView(APIView):
 
 class ChartDataView(APIView):
 
+    @extend_schema(
+        parameters=[
+            OpenApiParameter("category_id", OpenApiTypes.INT, OpenApiParameter.QUERY, required=False,
+                             description="ID категории для построения графиков"),
+            OpenApiParameter("q", OpenApiTypes.STR, OpenApiParameter.QUERY, required=False,
+                             description="Поисковый запрос для построения графиков"),
+            OpenApiParameter("min_price", OpenApiTypes.DECIMAL, OpenApiParameter.QUERY, required=False),
+            OpenApiParameter("top_price", OpenApiTypes.DECIMAL, OpenApiParameter.QUERY, required=False),
+            OpenApiParameter("min_rating", OpenApiTypes.FLOAT, OpenApiParameter.QUERY, required=False),
+            OpenApiParameter("min_feedbacks", OpenApiTypes.INT, OpenApiParameter.QUERY, required=False),
+        ],
+        description="Строит данные для графиков: гистограмма цен и зависимости скидки от рейтинга.",
+        responses={
+            200: OpenApiResponse(description="Ответ с price_histogram и discount_vs_rating"),
+            400: OpenApiResponse(description="Некорректные параметры запроса")
+        }
+    )
     def get(self, request):
 
         category_id = request.query_params.get('category_id')
