@@ -35,10 +35,10 @@ services:
   celery:
     build: .
     command: celery -A app worker -l info
+    working_dir: /app/app
     restart: always
-    working_dir: /app
     volumes:
-      - ./app:/app
+      - .:/app
     environment:
       - DJANGO_SETTINGS_MODULE=app.settings.local
       - CELERY_BROKER_URL=amqp://admin:mypass@rabbitmq:5672//
