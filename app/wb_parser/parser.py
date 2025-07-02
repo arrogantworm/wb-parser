@@ -39,6 +39,25 @@ def search_category_by_id(category_id:int) -> list[dict] | None:
     return recursive_search(categories, [])
 
 
+def search_category_by_url(search_query) -> list[dict] | None:
+    """Поиск категории в каталоге по url"""
+
+    def recursive_search(categories: list, path: list) -> list[dict] | None:
+        for category in categories:
+            current_path = path + [category]
+            if category.get("url") == search_query:
+                return current_path
+
+            if "childs" in category:
+                result = recursive_search(category["childs"], current_path)
+                if result:
+                    return result
+        return None
+
+    categories = get_wb_categories()
+    return recursive_search(categories, [])
+
+
 @retry(
     stop=stop_after_attempt(5),
     wait=wait_exponential(multiplier=1, min=2, max=10),
@@ -49,10 +68,10 @@ def parse_page(page: int = 1, shard:str = None, query:str = None, low_price:int 
 
     headers = {"User-Agent": "Mozilla/5.0 (X11; Linux x86_64; rv:139.0) Gecko/20100101 Firefox/139.0"}
 
-    url = f'https://catalog.wb.ru/catalog/{shard}/v2/catalog?appType=1&curr=rub' \
-          f'&dest=-1257786' \
-          f'&locale=ru' \
-          f'&page={page}'
+    url = (f'https://catalog.wb.ru/catalog/{shard}/v2/catalog?appType=1&curr=rub'
+          f'&dest=-1257786'
+          f'&locale=ru'
+          f'&page={page}')
     if low_price:
         url += f'&priceU={low_price * 100}'
     if top_price:
@@ -60,6 +79,24 @@ def parse_page(page: int = 1, shard:str = None, query:str = None, low_price:int 
     url += f'&sort=popular&spp=0'
     if query:
         url += f'&{query}'
+
+    r = requests.get(url, headers=headers)
+
+    return r.json()
+
+
+@retry(
+    stop=stop_after_attempt(5),
+    wait=wait_exponential(multiplier=1, min=2, max=10),
+    retry=retry_if_exception_type((requests.exceptions.RequestException,))
+)
+def search_page_parse(search_query:str, page: int = 1):
+
+    headers = {"User-Agent": "Mozilla/5.0 (X11; Linux x86_64; rv:139.0) Gecko/20100101 Firefox/139.0"}
+
+    url = (f'https://search.wb.ru/exactmatch/ru/common/v13/'
+           f'search?ab_prepositions=multitype&appType=1&curr=rub&dest=-445275&lang=ru&page={page}'
+           f'&query={search_query}&resultset=catalog&sort=popular&spp=30&suppressSpellcheck=false&uclusters=9')
 
     r = requests.get(url, headers=headers)
 

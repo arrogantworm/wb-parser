@@ -11,6 +11,7 @@ const tableWrapper = document.querySelector('.table-wrapper');
 // get параметры
 const params = new URLSearchParams(window.location.search);
 const categoryId = params.get('category_id');
+const searchQuery = params.get('q');
 let page = params.get('page');
 if (!page) {
     page = 1;
@@ -87,9 +88,16 @@ async function initCategoryNav() {
 }
 
 // Проверка готовности данных
-async function requestCategoryStatus() {
+async function requestParsingStatus() {
     try {
-        const response = await fetch(`/api/parse/?category_id=${categoryId}`);
+        let url;
+
+        if (categoryId) {
+            url = `/api/parse/?category_id=${categoryId}`;
+        } else if (searchQuery) {
+            url = `/api/parse/?q=${searchQuery}`;
+        };
+        const response = await fetch(url);
         const data = await response.json();
 
         if (!response.ok) {
@@ -520,7 +528,7 @@ async function initCharts() {
 }
 
 async function initProductsInfo() {
-    const parsingStatus = await requestCategoryStatus(categoryId);
+    const parsingStatus = await requestParsingStatus();
     console.log('Статус:', parsingStatus);
 
     switch (parsingStatus) {
@@ -557,10 +565,14 @@ async function initProductsInfo() {
 
 async function init() {
     // Поиск по категории
-    if (categoryId !== null) {
+    if (categoryId || searchQuery ) {
 
-        // Получаем путь к категории
-        initCategoryNav();
+        if (categoryId) {
+            // Получаем путь к категории
+            initCategoryNav();
+        } else if (searchQuery) {
+            mainNav.remove();
+        };
 
         // Запуск парсинга и отображение товаров
         initProductsInfo();

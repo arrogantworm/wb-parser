@@ -1,8 +1,9 @@
 import math
 from decimal import Decimal
 from datetime import timedelta
+from django.shortcuts import get_object_or_404
 from django.utils import timezone
-from django.db.models import Min, Max, Q
+from django.db.models import Min, Max, Q, F
 from django.core.cache import cache
 from rest_framework.pagination import PageNumberPagination
 from rest_framework.generics import ListAPIView
@@ -10,7 +11,7 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
 from wb_parser import parser
-from .models import Category, Product, Size
+from .models import Category, Product, Size, SearchQuery
 from .serializers import ProductSerializer
 from . import tasks
 
@@ -26,14 +27,13 @@ class ProductParseView(APIView):
 
             category_id = query_params.get('category_id')
 
-            if not (category_id or category_id.isdigit()):
+            if not category_id or not category_id.isdigit():
                 return Response({'status': 'error', 'error': 'ID категории должно быть числом'}, status=status.HTTP_400_BAD_REQUEST)
 
             category_id = int(category_id)
 
             task_id = f'parsing_category_{category_id}'
             parsing_status = cache.get(task_id)
-            print(f'Task state: {parsing_status}', flush=True)
 
             try:
                 # Категория есть в БД
@@ -72,8 +72,49 @@ class ProductParseView(APIView):
 
         # Поисковая строка
         elif 'q' in query_params:
-            # TODO: реализовать функционал поиска
-            pass
+            search_query = query_params.get('q')
+            search_query = search_query.lower()
+
+            # Ссылка на категорию в строке поиска
+            if search_query.startswith('https://www.wildberries.ru/catalog'):
+                category_url = search_query.split('https://www.wildberries.ru')[-1]
+                category_path = parser.search_category_by_url(category_url)
+                if category_path:
+                    category_id = category_path[-1]['id']
+                    return Response({'type': 'category', 'category_id': category_id}, status=status.HTTP_200_OK)
+                else:
+                    return Response({'status': 'error', 'error': 'Категория не найдена'},
+                                    status=status.HTTP_400_BAD_REQUEST)
+
+
+            # Поисковый запрос
+            else:
+                if len(search_query) > 255:
+                    return Response({'error': 'Слишком длинный запрос'}, status=status.HTTP_400_BAD_REQUEST)
+                need_parsing = False
+                try:
+                    search_query_obj = SearchQuery.objects.get(query=search_query)
+                    if search_query_obj.last_search < timezone.now() - timedelta(days=7):
+                        search_query_obj.count = F('count') + 1
+                        search_query_obj.save()
+                        need_parsing = True
+                except SearchQuery.DoesNotExist:
+                    search_query_obj = SearchQuery.objects.create(query=search_query)
+                    need_parsing = True
+
+                task_id = f'parsing_search_{search_query_obj.pk}'
+                parsing_status = cache.get(task_id)
+
+                if parsing_status == 'parsing':
+                    return Response({'type': 'search', 'status': 'parsing'}, status=status.HTTP_200_OK)
+
+                if need_parsing:
+                    tasks.parse_products_for_search.delay(search_query, search_query_obj.pk)
+                    cache.set(task_id, 'parsing', timeout=3600)
+                    return Response({'type': 'search', 'status': 'parsing'}, status=status.HTTP_200_OK)
+                else:
+                    return Response({'type': 'search', 'status': 'ok'}, status=status.HTTP_200_OK)
+
 
         return Response(status=status.HTTP_400_BAD_REQUEST)
 
@@ -90,12 +131,20 @@ class ProductListView(ListAPIView):
     def get_queryset(self):
 
         category_id = self.request.query_params.get('category_id')
+        search_query = self.request.query_params.get('q')
 
         # По категории
-        if not category_id:
+        if category_id:
+            qs = Product.objects.filter(category__wb_id=category_id).prefetch_related('sizes')
+        elif search_query:
+            search_query = search_query.lower()
+            try:
+                search_query_obj = SearchQuery.objects.get(query=search_query)
+                qs = search_query_obj.products.prefetch_related('sizes')
+            except SearchQuery.DoesNotExist:
+                return Product.objects.none()
+        else:
             return Product.objects.none()
-
-        qs = Product.objects.filter(category__wb_id=category_id).prefetch_related('sizes')
 
         # Фильтрация
         filters = Q()
@@ -184,14 +233,25 @@ class ChartDataView(APIView):
     def get(self, request):
 
         category_id = request.query_params.get('category_id')
+        search_query = request.query_params.get('q')
 
-        if not (category_id or category_id.isdigit()):
-            return Response({'status': 'error', 'error': 'ID категории должно быть числом'},
-                            status=status.HTTP_400_BAD_REQUEST)
+        if category_id:
+            if not category_id.isdigit():
+                return Response({'status': 'error', 'error': 'ID категории должно быть числом'},
+                                status=status.HTTP_400_BAD_REQUEST)
 
-        category_id = int(category_id)
+            category_id = int(category_id)
+            products = Product.objects.filter(category__wb_id=category_id)
 
-        qs = Size.objects.filter(product__category__wb_id=category_id)
+        elif search_query:
+            search_query = search_query.lower()
+            search_query_obj = get_object_or_404(SearchQuery, query=search_query)
+            products = search_query_obj.products.all()
+
+        else:
+            return Response(status=status.HTTP_400_BAD_REQUEST)
+
+        qs = Size.objects.filter(product__in=products)
 
         # фильтры цен
         min_f = request.query_params.get('min_price')
@@ -244,7 +304,6 @@ class ChartDataView(APIView):
             })
 
         # discount vs rating
-        products = Product.objects.filter(category__wb_id=category_id)
 
         if min_f:
             products = products.filter(sizes__discounted_price__gte=min_f)
@@ -254,11 +313,11 @@ class ChartDataView(APIView):
             products = products.filter(review_rating__gte=min_rating)
         if min_feedbacks:
             products = products.filter(feedbacks__gte=min_feedbacks)
-
+        products = products.prefetch_related('sizes')
         discount_vs_rating = []
         seen_pairs = set()
 
-        for product in products.prefetch_related('sizes'):
+        for product in products:
             if product.sizes.exists():
                 size = product.sizes.first()
                 if size.price and size.discounted_price and size.price > 0:

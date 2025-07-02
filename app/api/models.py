@@ -51,6 +51,8 @@ class Product(models.Model):
         related_name='products',
         on_delete=models.CASCADE,
         db_index=True,
+        null=True,
+        blank=True,
     )
 
     name = models.CharField(max_length=255, db_index=True)
@@ -120,7 +122,7 @@ class Size(models.Model):
 class SearchQuery(models.Model):
 
     query = models.CharField(max_length=2048, db_index=True)
-    products = models.ManyToManyField(Product, related_name='search_queries')
+    products = models.ManyToManyField(Product, related_name='search_queries', blank=True, null=True)
     count = models.PositiveIntegerField(default=1)
 
     created = models.DateTimeField(auto_now_add=True)

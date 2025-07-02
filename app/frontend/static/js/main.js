@@ -15,6 +15,47 @@ searchInput.addEventListener('focusout', () => {
     searchWrapper.classList.remove('focus');
 });
 
+searchInput.parentElement.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const query = searchInput.value;
+    const url = `/api/parse/?q=${query}`;
+
+    try {
+        const response = await fetch(url);
+        const data = await response.json();
+
+        if (!response.ok) {
+            throw data;
+        }
+
+        console.log(data);
+
+        if (data.hasOwnProperty('type')) {
+            switch (data['type']) {
+                case 'category':
+                    let category_id = data['category_id'];
+                    window.location.href = `products/?category_id=${category_id}`;
+                    break;
+
+                case 'search':
+                    window.location.href = `products/?q=${query}`;
+                    break;
+
+                default:
+                    console.log('?');
+            }
+        }
+    } catch (error) {
+        if (error.hasOwnProperty('error')) {
+            console.error('Ошибка от сервера:', error.error);
+            return 'error';
+        } else {
+            console.error('Ошибка запроса:', error);
+            return 'error';
+        }
+    }
+});
+
 // Categories
 
 document.querySelectorAll('.category-card').forEach(card => {
